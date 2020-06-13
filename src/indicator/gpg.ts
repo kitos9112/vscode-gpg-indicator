@@ -1,4 +1,6 @@
 import * as process from './process';
+import * as tempfile from './tempfile';
+import { sign } from 'crypto';
 
 export interface GpgKeyInfo {
     type: string;
@@ -80,4 +82,30 @@ export async function getKeyInfo(keyId: string): Promise<GpgKeyInfo> {
     }
 
     throw new Error(`Can not find key with ID: ${keyId}`);
+}
+
+export async function unlockByKeyId(keyId: string, passphrase: string): Promise<void> {
+    let document: tempfile.TempTextFile | undefined;
+    let signature: tempfile.TempTextFile | undefined;
+
+    try {
+        document = new tempfile.TempTextFile();
+        signature = new tempfile.TempTextFile();
+        await document.create();
+        await signature.create();
+
+        const output = await process.textSpawn(
+            'gpg',
+            [
+                '--clear-sign', '--pinentry-mode', 'loopback', '--local-user', keyId,
+                '--output', signature.filePath, document.filePath,
+            ],
+            'y\n' + passphrase + '\n'
+        );
+    } finally {
+        signature?.dispose();
+        document?.dispose();
+    }
+    // gpg can signed the document even if the document is empty
+
 }

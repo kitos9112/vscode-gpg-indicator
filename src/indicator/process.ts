@@ -7,6 +7,14 @@ export function sleep(ms: number): Promise<void> {
     });
 }
 
+/**
+ * Run specified command, with given input and return output(promise) in string
+ *
+ * @param command executable name
+ * @param args options and arguments, executable name is not included
+ * @param input stdin
+ * @returns The promise which resolve the stdout. Rejects if fail to run command or command returns not zero value.
+ */
 export function textSpawn(command: string, args: Array<string>, input: string): Promise<string> {
     return new Promise((resolve, reject) => {
         let proc = child.spawn(command, args);
