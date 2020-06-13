@@ -1,6 +1,23 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import * as util from 'util';
+import * as crypto from 'crypto';
+
+/**
+ * Get random hex string
+ *
+ * Note the return string length will be double
+ *
+ * @param size The number of bytes
+ */
+async function getRandomHex(size: number): Promise<string> {
+    const randomBytes = util.promisify(crypto.randomBytes);
+    const buffer = await randomBytes(size);
+    const hexString = buffer.toString('hex');
+    return hexString;
+}
+
 
 /**
  * TempTextFile rely on NodeJS mkdtemp

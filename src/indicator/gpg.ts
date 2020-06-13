@@ -84,6 +84,24 @@ export async function getKeyInfo(keyId: string): Promise<GpgKeyInfo> {
     throw new Error(`Can not find key with ID: ${keyId}`);
 }
 
+class Action {
+    readonly question: RegExp;
+    readonly answer: string;
+
+    constructor(question: RegExp, answer: string) {
+        this.question = question;
+        this.answer = answer;
+    }
+}
+
+async function answerTty(tty: process.Tty, actions: Action[]): Promise<void> {
+    for (const action of actions) {
+        const output = await tty.read();
+        if (output.match(action.question) === null) { throw new Error('Fail to match output'); }
+        await tty.write(action.answer);
+    }
+}
+
 export async function unlockByKeyId(keyId: string, passphrase: string): Promise<void> {
     let document: tempfile.TempTextFile | undefined;
     let signature: tempfile.TempTextFile | undefined;
@@ -94,7 +112,16 @@ export async function unlockByKeyId(keyId: string, passphrase: string): Promise<
         await document.create();
         await signature.create();
 
-        const output = await process.textSpawn(
+        const tty = new process.CurrentTty();
+        await tty.open();
+
+        const actions = [
+            new Action(/File .* exists. Overwrite\? \(y\/N\)/, 'y\n'),
+            new Action(/Enter passphrase:/, passphrase + '\n'),
+        ];
+
+        const handlePassphraseInput = answerTty(tty, actions);
+        const callGpg = process.textSpawn(
             'gpg',
             [
                 '--clear-sign', '--pinentry-mode', 'loopback', '--local-user', keyId,
@@ -102,6 +129,8 @@ export async function unlockByKeyId(keyId: string, passphrase: string): Promise<
             ],
             'y\n' + passphrase + '\n'
         );
+
+        await Promise.all([callGpg, handlePassphraseInput]);
     } finally {
         signature?.dispose();
         document?.dispose();

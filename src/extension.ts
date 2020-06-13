@@ -5,7 +5,7 @@ import * as gpg from './indicator/gpg';
 import * as process from './indicator/process';
 
 // Default interval to sync key status, in second.
-const syncStatusInterval = 30;
+const syncStatusInterval = 3;
 
 interface KeyStatusEvent {
     keyId: string

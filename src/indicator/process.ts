@@ -1,5 +1,7 @@
 
 import * as child from 'child_process';
+import * as fs from 'fs';
+
 
 export function sleep(ms: number): Promise<void> {
     return new Promise((resolve, reject) => {
@@ -39,9 +41,42 @@ export function textSpawn(command: string, args: Array<string>, input: string): 
         proc.on('error', reject);
         proc.on('close', (code) => {
             if (code !== 0) {
-                reject(new Error(`Command execution failed, return code: ${code}, stderr: ${error_message}`));
+                reject(new Error(`Command ${command} failed, return code: ${code}, stderr: ${error_message}`));
             }
             resolve(output);
         });
     });
+}
+
+export interface Tty {
+    read(): Promise<string>
+    write(content: string): Promise<void>
+}
+
+export class CurrentTty implements Tty {
+    #ttyPath?: string;
+    #ttyHandle?: fs.promises.FileHandle;
+
+    constructor() {
+    }
+
+    async open(): Promise<void> {
+        const ttyOutput = await textSpawn('tty', [], '');
+        this.#ttyPath = ttyOutput.replace('\n', '');
+        this.#ttyHandle = await fs.promises.open(this.#ttyPath, 'rw');
+    }
+
+    async read(): Promise<string> {
+        if (this.#ttyHandle === undefined) { throw new Error('TTY not opened'); }
+        return await this.#ttyHandle.readFile('utf8');
+    }
+
+    async write(content: string): Promise<void> {
+        if (this.#ttyHandle === undefined) { throw new Error('TTY not opened'); }
+        await this.#ttyHandle.writeFile(content, 'utf8');
+    }
+
+    async dispose(): Promise<void> {
+        await this.#ttyHandle?.close();
+    }
 }
