@@ -1,6 +1,8 @@
 
 import * as child from 'child_process';
 import * as fs from 'fs';
+import * as os from 'os';
+import * as pty from 'node-pty';
 
 
 export function sleep(ms: number): Promise<void> {
@@ -47,6 +49,46 @@ export function textSpawn(command: string, args: Array<string>, input: string): 
         });
     });
 }
+
+class Action {
+    readonly question: RegExp;
+    readonly answer: string;
+
+    constructor(question: RegExp, answer: string) {
+        this.question = question;
+        this.answer = answer;
+    }
+}
+
+export function expectPty(command: string, args: Array<string>, actions: Action[]): Promise<void> {
+    const shell = os.platform() === 'win32' ? 'powershell.exe' : 'bash';
+    return new Promise((resolve, reject) => {
+        let proc = pty.spawn(command, args, {
+            name: 'xterm-color',
+            cols: 80,
+            rows: 24,
+        });
+
+        proc.on('data', (data: string) => {
+            const action = actions.shift();
+            if (action === undefined) {
+                reject(new Error('No enough action for current process'));
+                return;
+            }
+            if (data.match(action.question) === null) {
+                reject(new Error('Fail to match output'));
+            }
+            proc.write(action.answer);
+        });
+
+        proc.on('exit', (exitCode: number) => {
+            if (exitCode !== 0) { reject(new Error(`Process [${command}] return [${exitCode}]`)); }
+            else { resolve(); }
+        });
+    });
+
+}
+
 
 export interface Tty {
     read(): Promise<string>

@@ -1,6 +1,5 @@
 import * as process from './process';
 import * as tempfile from './tempfile';
-import { sign } from 'crypto';
 
 export interface GpgKeyInfo {
     type: string;
@@ -112,25 +111,19 @@ export async function unlockByKeyId(keyId: string, passphrase: string): Promise<
         await document.create();
         await signature.create();
 
-        const tty = new process.CurrentTty();
-        await tty.open();
-
         const actions = [
             new Action(/File .* exists. Overwrite\? \(y\/N\)/, 'y\n'),
             new Action(/Enter passphrase:/, passphrase + '\n'),
         ];
 
-        const handlePassphraseInput = answerTty(tty, actions);
-        const callGpg = process.textSpawn(
+        await process.expectPty(
             'gpg',
             [
                 '--clear-sign', '--pinentry-mode', 'loopback', '--local-user', keyId,
                 '--output', signature.filePath, document.filePath,
             ],
-            'y\n' + passphrase + '\n'
+            actions
         );
-
-        await Promise.all([callGpg, handlePassphraseInput]);
     } finally {
         signature?.dispose();
         document?.dispose();
